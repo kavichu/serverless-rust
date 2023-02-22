@@ -1,25 +1,23 @@
 use aws_config::meta::region::RegionProviderChain;
 use aws_sdk_dynamodb::Client;
 use aws_sdk_dynamodb::model::AttributeValue;
-use lambda_runtime::{handler_fn, Context, Error as LambdaError};
-use serde::Deserialize;
+use lambda_runtime::{service_fn, LambdaEvent, Error as LambdaError};
 use serde_json::{json, Value};
 use uuid::Uuid;
 
 #[tokio::main]
 async fn main()  -> Result<(), LambdaError> {
-    let func  = handler_fn(handler);
+    let func  = service_fn(handler);
     lambda_runtime::run(func).await?;
     Ok(())
 }
 
-#[derive(Deserialize)]
-struct CustomEvent {
-    first_name: String,
-    last_name: String
-}
+async fn handler(event: LambdaEvent<Value>) -> Result<Value, LambdaError> {
 
-async fn handler(event: CustomEvent, _: Context) -> Result<Value, LambdaError> {
+    let (event, _context) = event.into_parts();
+
+    let first_name = event["first_name"].as_str().unwrap();
+    let last_name = event["last_name"].as_str().unwrap();
     let uuid = Uuid::new_v4().to_string();
 
     let region_provider = RegionProviderChain::default_provider().or_else("us-east-1");
@@ -29,8 +27,8 @@ async fn handler(event: CustomEvent, _: Context) -> Result<Value, LambdaError> {
     let request = client.put_item()
         .table_name("Users")
         .item("uuid", AttributeValue::S(String::from(uuid)))
-        .item("first_name", AttributeValue::S(String::from(event.first_name)))
-        .item("last_name", AttributeValue::S(String::from(event.last_name)));
+        .item("first_name", AttributeValue::S(String::from(first_name)))
+        .item("last_name", AttributeValue::S(String::from(last_name)));
 
     request.send().await?;
 
